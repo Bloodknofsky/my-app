@@ -1,6 +1,10 @@
 # Project rulebook — Arman Sykot profile site
 
-Personal academic profile page for a quantum sensing researcher, with a PDF RAG chatbot for document Q&A. Full context: [PRD.md](PRD.md), [prd_lite.md](prd_lite.md).
+Personal academic profile page for a quantum sensing researcher, with an NV-diamond research assistant chatbot. Original planning context (visitor-upload chatbot, since superseded — see "Cycle 2 pivot" below): [PRD.md](PRD.md), [prd_lite.md](prd_lite.md).
+
+## Cycle 2 pivot — fixed research corpus, not visitor uploads
+
+The chatbot no longer accepts visitor-uploaded PDFs. It's pre-loaded with one paper — Barry et al., "Sensitivity optimization for NV-diamond magnetometry," Rev. Mod. Phys. 92, 015004 (2020) — embedded once via `scripts/build-corpus.mjs` into `data/nv-corpus.json` (chunks + 512-dim vectors, read server-side by `/api/chat`, never sent to the client). This supersedes PRD's "visitor uploads a PDF" flow and the "multi-document library" out-of-scope item below (moot — there's one fixed document, not visitor-managed ones). `/api/embed` was removed (no runtime caller left) and moved to `trash/`. Rebuilding for a different or additional paper: edit `SOURCE_PDF` (and `SKIP_PAGES` if needed) in `scripts/build-corpus.mjs` and rerun it.
 
 ## Stack (fixed — do not swap)
 
@@ -41,35 +45,35 @@ Repeat this loop for every change, no matter how small:
 - A CHECK.md item that requires action on an external account (billing caps, deploy-platform env vars) can't be closed with a code change — write the requirement into CLAUDE.md/DESIGN.md as a durable rule, and mark it fixed only once the user confirms they did it themselves.
 - **`vercel deploy` does NOT honor `.gitignore`** — it uploaded the real `.env` on the first deploy despite `.gitignore` listing it. A `.vercelignore` is required separately, and must be verified with `vercel deploy --dry --json` (checking the actual `files` list) before trusting any deploy, not after.
 - **`pdfjs`'s `getTextContent()` returns items in PDF content-stream order, not visual reading order.** For two-column layouts (the norm for academic papers — exactly what this app is for) some PDF producers emit column text interleaved line-by-line, garbling both columns together and producing chunks that mix unrelated content. A single-chunk or few-chunk test PDF can't surface this — it takes a real multi-column document to catch. Fixed with column-gap detection in `extractPdfText`'s `reconstructReadingOrder`; verify any future change here against both a single-column and a genuine two-column test PDF, not just one.
+- **Fixed-size chunking is fragile to any upstream edit.** Changing extracted text length anywhere (stripping a section, skipping a page) shifts every later chunk boundary, which can silently regress retrieval quality for unrelated content elsewhere in the document. Tried skipping a whole page to remove table-of-contents noise once — it also removed real content sharing that page and broke several previously-working answers. Always re-run the full suggested-question test set after any corpus-building change, not just the one question you were fixing.
+- **A review paper's bibliography is pure retrieval noise** — citation-list text is dense with the same domain keywords as real content, so it ranks highly by cosine similarity while adding zero explanatory value, actively crowding out better chunks. `scripts/build-corpus.mjs`'s `stripBibliography()` detects and removes it via `,` + year + `,` pattern density (a citation-list signature), which generalizes across papers, unlike a hardcoded section-heading search.
+- **A paper's own table-of-contents page can dilute the one chunk containing an important definition** if column-gap detection fails on that page (TOC dot-leaders can narrow the gap below the detection threshold). No general fix landed for this — when a specific suggested question retrieves a good source sentence but the model still says "not covered," check whether the containing chunk is interleaved with TOC noise before assuming it's a model/prompt problem.
+- **A superscript/special-character glyph (e.g. the `*` in `T2*`) can extract as a control character**, not the visible symbol, depending on the PDF's font encoding. A question using that exact notation then embeds nothing like the source text. Prefer suggested questions phrased in plain prose the paper's actual sentences would use, not symbolic shorthand, until there's a reason to trust a specific paper's glyph extraction.
 
 ## Feature 1 — Profile page
 
 - Static content only, except the copy-email button. No login, no database.
 - Must render with no layout breakage from 320px to 1920px viewport width.
 
-## Feature 2 — RAG chatbot
+## Feature 2 — NV-diamond research assistant chatbot
 
-Visitor uploads a PDF; the app extracts/chunks/embeds text and answers questions grounded in it.
+Fixed knowledge base (one pre-embedded paper, see "Cycle 2 pivot" above) — no visitor upload. Suggested-question chips on first load; free-text input always available.
 
-- Chunk size fixed at 800 characters. Retrieve only the top 5 most similar chunks (cosine similarity) as context — never more.
-- Reject PDF uploads over 10MB with a clear error message.
-- Reject non-PDF uploads client-side with exactly: `Only PDF files are supported.`
-- If extraction yields no readable text (scanned/image-only PDF): `This PDF has no readable text — try a different file.` OCR is out of scope.
-- If the PDF fails to open (password-protected or corrupted): `This PDF is password-protected or corrupted — try a different file.` Password entry is out of scope.
-- If a document is already loaded and the visitor uploads another, warn first — `Uploading a new PDF will replace the current document and clear the chat.` — before replacing. Never mix chunks from two documents.
-- If an answer isn't supported by the retrieved chunks, the bot must say it doesn't know — never guess.
-- Any PDF parsing failure must show a specific, user-facing error — never fail silently.
+- 512-dim embeddings (`text-embedding-3-small`), top-10 cosine-similarity chunks as context per question.
+- Scoped to the paper's subject: off-topic questions get a polite redirect, not an attempt to answer — enforced via the system prompt in `/api/chat`.
+- If an answer isn't supported by the retrieved chunks, the bot must say the paper doesn't cover it — never guess.
 - If the OpenAI call times out or hits a rate limit, show `Something went wrong (<reason>)` with the real reason. No automatic retry.
-- Document and chat state live only in memory. A page refresh resets both — no sessionStorage/localStorage/backend persistence.
+- No logging of questions, chunks, or answers in `/api/chat` (or any future route) — the one lesson from Cycle 1 that still applies even without visitor uploads.
+- Chat state (message history) lives only in client memory. A page refresh clears it — no sessionStorage/localStorage/backend persistence. The corpus itself is a static server-side asset, not per-session state.
 
 ## Out of scope — do not build
 
 - User accounts/login.
-- Multi-document library (one PDF at a time, unsaved).
+- Visitor PDF uploads (superseded by the fixed-corpus pivot — see above).
 - Persistent chat history across sessions.
 - Admin/analytics dashboard.
 - Upload/question rate limiting.
-- Non-English PDFs or questions.
+- Non-English questions.
 
 ## Accessibility bar
 
@@ -77,7 +81,7 @@ Semantic HTML, alt text, keyboard-operable controls, sufficient color contrast. 
 
 ## Security & secrets
 
-- Uploaded documents are the researcher's own already-published papers — public, non-confidential. Never assume otherwise; don't add handling for private/personal data.
+- The chatbot's knowledge base is a public, already-published paper the lab chose to embed — non-confidential. Never assume otherwise; don't add handling for private/personal data.
 - Secrets (`OPENAI_API_KEY`, `GITHUB_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `VERCEL_TOKEN`) live only in `.env`, which is gitignored. Never print, log, or echo their values.
 - When configuring the deployed Vercel project's environment variables, set **only `OPENAI_API_KEY`** (ideally a key dedicated to this project). `GITHUB_TOKEN`, `SUPABASE_ACCESS_TOKEN`, and `VERCEL_TOKEN` are for local CLI tooling only and must never be added to the app's runtime environment — a `VERCEL_TOKEN` living inside its own public app is self-escalating (any future leak lets an attacker redeploy the site).
 
