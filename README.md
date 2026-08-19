@@ -11,7 +11,7 @@ Full requirements and design are documented in [PRD.md](PRD.md), [PLAN.md](PLAN.
 
 ## Status
 
-Built incrementally as a PDCA (Plan–Design–Do–Check–Act) exercise. Currently implemented: the profile page, its styling, and the copy-email interaction. The chatbot route exists as a placeholder — PDF upload, text extraction, chunking, embedding, and the chat UI are still in progress (see [PLAN.md](PLAN.md) for the full task list and [CHECK.md](CHECK.md) for the latest verification results).
+Built incrementally as a PDCA (Plan–Design–Do–Check–Act) exercise. The profile page and the RAG chatbot (upload, extraction, chunking, embedding, retrieval, and chat) are functional end to end. Remaining: a dedicated accessibility pass over the chatbot's new controls and a full 5+5 grounding test set (see [PLAN.md](PLAN.md) for exact status per task). [CHECK.md](CHECK.md) reflects an earlier point in the build and is due for a fresh gap analysis / security review now that the chatbot exists.
 
 ## Stack
 
