@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import PixelCompanion from "../components/PixelCompanion";
 
 type DocState = {
   name: string;
@@ -169,6 +170,7 @@ export default function ChatbotPage() {
         <h1 className="text-2xl font-bold tracking-tight text-blue-950 sm:text-3xl">
           RAG Chatbot
         </h1>
+        <PixelCompanion thinking={sending} />
         <p className="max-w-md text-center text-sm text-slate-600 sm:text-base">
           Upload a PDF, then ask questions. Answers are based only on what&apos;s in that
           document.
