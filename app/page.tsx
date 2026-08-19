@@ -98,7 +98,7 @@ export default function Home() {
             <path d="M8 8.5h8" />
             <path d="M8 12h5" />
           </svg>
-          RAG Chatbot
+          NV-Diamond Research Assistant
         </Link>
       </div>
 
