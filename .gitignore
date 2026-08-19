@@ -1,0 +1,7 @@
+.env
+node_modules
+.next
+.claude
+trash
+.bkit
+.DS_Store
