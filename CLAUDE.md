@@ -40,6 +40,7 @@ Repeat this loop for every change, no matter how small:
 - When a scaffolding tool would overwrite existing project files (e.g. `create-next-app` generating its own `CLAUDE.md`/`.gitignore`), run it in a scratch directory first and copy over only the files actually needed — never run it in place.
 - A CHECK.md item that requires action on an external account (billing caps, deploy-platform env vars) can't be closed with a code change — write the requirement into CLAUDE.md/DESIGN.md as a durable rule, and mark it fixed only once the user confirms they did it themselves.
 - **`vercel deploy` does NOT honor `.gitignore`** — it uploaded the real `.env` on the first deploy despite `.gitignore` listing it. A `.vercelignore` is required separately, and must be verified with `vercel deploy --dry --json` (checking the actual `files` list) before trusting any deploy, not after.
+- **`pdfjs`'s `getTextContent()` returns items in PDF content-stream order, not visual reading order.** For two-column layouts (the norm for academic papers — exactly what this app is for) some PDF producers emit column text interleaved line-by-line, garbling both columns together and producing chunks that mix unrelated content. A single-chunk or few-chunk test PDF can't surface this — it takes a real multi-column document to catch. Fixed with column-gap detection in `extractPdfText`'s `reconstructReadingOrder`; verify any future change here against both a single-column and a genuine two-column test PDF, not just one.
 
 ## Feature 1 — Profile page
 

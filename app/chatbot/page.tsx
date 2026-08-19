@@ -35,6 +35,50 @@ function chunkText(text: string): string[] {
   return chunks.filter((chunk) => chunk.length > 0);
 }
 
+type PositionedItem = { str: string; x: number; y: number };
+
+// pdfjs's getTextContent() returns items in the PDF content stream's emission
+// order, which for a two-column layout (the norm for academic papers) is often
+// NOT visual reading order — some PDF producers interleave column text
+// line-by-line, garbling both columns together. Detect a column gutter via the
+// largest gap in item x-positions and, if found, read the left column fully
+// before the right column; otherwise fall back to plain top-to-bottom order.
+function reconstructReadingOrder(items: PositionedItem[]): string {
+  if (items.length === 0) return "";
+
+  const sortByPosition = (a: PositionedItem, b: PositionedItem) => {
+    if (Math.abs(a.y - b.y) > 2) return b.y - a.y; // top to bottom
+    return a.x - b.x; // left to right within a line
+  };
+
+  const xs = Array.from(new Set(items.map((i) => Math.round(i.x)))).sort((a, b) => a - b);
+  let splitX: number | null = null;
+  if (xs.length > 2) {
+    let maxGap = 0;
+    let gapIndex = -1;
+    for (let i = 1; i < xs.length; i++) {
+      const gap = xs[i] - xs[i - 1];
+      if (gap > maxGap) {
+        maxGap = gap;
+        gapIndex = i;
+      }
+    }
+    // Only treat this as a column gutter if it's a wide gap roughly in the
+    // middle of the text's x-range, not just a ragged-right margin artifact.
+    if (maxGap > 40 && gapIndex > xs.length * 0.2 && gapIndex < xs.length * 0.8) {
+      splitX = (xs[gapIndex - 1] + xs[gapIndex]) / 2;
+    }
+  }
+
+  if (splitX === null) {
+    return items.slice().sort(sortByPosition).map((i) => i.str).join(" ");
+  }
+
+  const left = items.filter((i) => i.x < (splitX as number)).sort(sortByPosition);
+  const right = items.filter((i) => i.x >= (splitX as number)).sort(sortByPosition);
+  return `${left.map((i) => i.str).join(" ")}\n${right.map((i) => i.str).join(" ")}`;
+}
+
 async function extractPdfText(file: File): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -56,8 +100,12 @@ async function extractPdfText(file: File): Promise<string> {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
-      const strings = content.items.map((item) => ("str" in item ? item.str : ""));
-      text += strings.join(" ") + "\n";
+      const items: PositionedItem[] = content.items.map((item) =>
+        "str" in item
+          ? { str: item.str, x: item.transform[4], y: item.transform[5] }
+          : { str: "", x: 0, y: 0 }
+      );
+      text += reconstructReadingOrder(items) + "\n";
     }
     return text;
   } catch {
