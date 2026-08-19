@@ -39,6 +39,7 @@ Repeat this loop for every change, no matter how small:
 - Never rely on OS/browser default dark-mode colors — pin `color-scheme: light` plus explicit background/text colors on every page, and confirm with an actual screenshot, not just a code read. This caused a near-invisible-text bug twice (the Part 3 `test.html` exercise and the Next.js scaffold's default `globals.css`).
 - When a scaffolding tool would overwrite existing project files (e.g. `create-next-app` generating its own `CLAUDE.md`/`.gitignore`), run it in a scratch directory first and copy over only the files actually needed — never run it in place.
 - A CHECK.md item that requires action on an external account (billing caps, deploy-platform env vars) can't be closed with a code change — write the requirement into CLAUDE.md/DESIGN.md as a durable rule, and mark it fixed only once the user confirms they did it themselves.
+- **`vercel deploy` does NOT honor `.gitignore`** — it uploaded the real `.env` on the first deploy despite `.gitignore` listing it. A `.vercelignore` is required separately, and must be verified with `vercel deploy --dry --json` (checking the actual `files` list) before trusting any deploy, not after.
 
 ## Feature 1 — Profile page
 

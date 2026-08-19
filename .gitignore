@@ -5,3 +5,5 @@ node_modules
 trash
 .bkit
 .DS_Store
+.vercel
+.env*

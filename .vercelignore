@@ -1,0 +1,6 @@
+.env
+.env.local
+.bkit
+.claude
+trash
+node_modules
